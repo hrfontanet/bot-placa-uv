@@ -1,18 +1,3 @@
-PRODUCTOS = {
-    "1": {
-        "nombre": "Placa UV Piedra Gris",
-        "precio_m2": 20000
-    },
-    "2": {
-        "nombre": "Placa UV Mármol Blanco",
-        "precio_m2": 24000
-    },
-    "3": {
-        "nombre": "Placa UV Cemento",
-        "precio_m2": 18000
-    }
-}
-
 from database import SessionLocal, Pedido
 
 usuarios = {}
@@ -106,6 +91,13 @@ def procesar_mensaje(user_id, mensaje):
             usuarios[user_id] = {"paso": "catalogo"}
 
             return "Pedido confirmado y guardado. Un asesor te contacta."
+
+    class Producto(Base):
+    __tablename__ = "productos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String)
+    precio_m2 = Column(Float)
 
         else:
             usuarios[user_id] = {"paso": "catalogo"}
