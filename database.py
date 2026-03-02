@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float
+ffrom sqlalchemy import create_engine, Column, Integer, String, Float
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 DATABASE_URL = "sqlite:///./bot.db"
@@ -15,15 +15,18 @@ class Pedido(Base):
     user_id = Column(String)
     producto = Column(String)
     total = Column(Float)
-    
+
+
 class Producto(Base):
     __tablename__ = "productos"
 
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String)
     precio_m2 = Column(Float)
-    
+
+
 Base.metadata.create_all(bind=engine)
+
 
 def crear_productos_iniciales():
     db = SessionLocal()
@@ -39,5 +42,6 @@ def crear_productos_iniciales():
         db.commit()
 
     db.close()
+
 
 crear_productos_iniciales()
