@@ -1,4 +1,4 @@
-from database import SessionLocal, Pedido
+from database import SessionLocal, Pedido, Producto
 
 usuarios = {}
 
@@ -12,9 +12,14 @@ def procesar_mensaje(user_id, mensaje):
     # Mostrar catálogo
     if estado["paso"] == "catalogo":
 
+        db = SessionLocal()
+        productos = db.query(Producto).all()
+        db.close()
+
         texto = "Elegí producto:\n"
-        for clave, producto in PRODUCTOS.items():
-            texto += f"{clave}. {producto['nombre']} - ${producto['precio_m2']}/m²\n"
+
+        for producto in productos:
+            texto += f"{producto.id}. {producto.nombre} - ${producto.precio_m2}/m²\n"
 
         estado["paso"] = "esperando_producto"
         return texto
@@ -22,14 +27,23 @@ def procesar_mensaje(user_id, mensaje):
     # Esperar selección de producto
     if estado["paso"] == "esperando_producto":
 
-        if mensaje not in PRODUCTOS:
-            return "Opción inválida. Elegí el número del producto."
+        db = SessionLocal()
+        producto = db.query(Producto).filter(Producto.id == int(mensaje)).first()
+        db.close()
 
-        estado["producto"] = PRODUCTOS[mensaje]
-        estado["paso"] = "esperando_m2"
+    if not producto:
+        return "Opción inválida. Elegí el número del producto."
 
-        return "¿Cuántos m² necesitás cubrir?"
+    estado["producto"] = {
+        "id": producto.id,
+        "nombre": producto.nombre,
+        "precio_m2": producto.precio_m2
+    }
 
+    estado["paso"] = "esperando_m2"
+
+    return "¿Cuántos m² necesitás cubrir?"
+    
     # Esperar m2
     if estado["paso"] == "esperando_m2":
 
