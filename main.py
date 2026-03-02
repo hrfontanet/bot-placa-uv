@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from bot import procesar_mensaje
+from ai import interpretar_mensaje
 
 app = FastAPI()
 
@@ -15,8 +16,6 @@ def webhook(data: dict):
     respuesta = procesar_mensaje(user_id, mensaje)
 
     return {"respuesta": respuesta}
-    
-from ai import interpretar_mensaje
 
 @app.get("/test-ai")
 def test_ai(mensaje: str):
