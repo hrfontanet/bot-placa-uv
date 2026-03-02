@@ -24,26 +24,30 @@ def procesar_mensaje(user_id, mensaje):
         estado["paso"] = "esperando_producto"
         return texto
 
-    # Esperar selección de producto
+    # Esperar selección
     if estado["paso"] == "esperando_producto":
 
+        try:
+            producto_id = int(mensaje)
+        except:
+            return "Elegí el número del producto."
+
         db = SessionLocal()
-        producto = db.query(Producto).filter(Producto.id == int(mensaje)).first()
+        producto = db.query(Producto).filter(Producto.id == producto_id).first()
         db.close()
 
-    if not producto:
-        return "Opción inválida. Elegí el número del producto."
+        if not producto:
+            return "Opción inválida. Elegí el número del producto."
 
-    estado["producto"] = {
-        "id": producto.id,
-        "nombre": producto.nombre,
-        "precio_m2": producto.precio_m2
-    }
+        estado["producto"] = {
+            "id": producto.id,
+            "nombre": producto.nombre,
+            "precio_m2": producto.precio_m2
+        }
 
-    estado["paso"] = "esperando_m2"
+        estado["paso"] = "esperando_m2"
+        return "¿Cuántos m² necesitás cubrir?"
 
-    return "¿Cuántos m² necesitás cubrir?"
-    
     # Esperar m2
     if estado["paso"] == "esperando_m2":
 
@@ -53,15 +57,15 @@ def procesar_mensaje(user_id, mensaje):
             return "Ingresá un número válido de m²."
 
         precio_m2 = estado["producto"]["precio_m2"]
-        total = m2 * precio_m2
+        subtotal = m2 * precio_m2
 
         estado["m2"] = m2
-        estado["subtotal"] = total
+        estado["subtotal"] = subtotal
         estado["paso"] = "esperando_envio"
 
         return "¿Cómo querés recibirlo?\n1. Envío\n2. Retiro"
 
-    # Envío o retiro
+    # Envío
     if estado["paso"] == "esperando_envio":
 
         if mensaje == "1":
@@ -106,33 +110,6 @@ def procesar_mensaje(user_id, mensaje):
 
             return "Pedido confirmado y guardado. Un asesor te contacta."
 
-    class Producto(Base):
-    __tablename__ = "productos"
-
-    id = Column(Integer, primary_key=True, index=True)
-    nombre = Column(String)
-    precio_m2 = Column(Float)
-
         else:
             usuarios[user_id] = {"paso": "catalogo"}
-            return "Pedido cancelado."
-
-    if estado["paso"] == "confirmar":
-        if mensaje.lower() == "confirmar":
-
-            db = SessionLocal()
-            nuevo_pedido = Pedido(
-                user_id=user_id,
-                producto="Placa UV",
-                total=estado["total"]
-            )
-            db.add(nuevo_pedido)
-            db.commit()
-            db.close()
-
-            estado["paso"] = "inicio"
-
-            return "Pedido confirmado y guardado. Un asesor te contacta."
-        else:
-            estado["paso"] = "inicio"
             return "Pedido cancelado."
