@@ -15,5 +15,12 @@ class Pedido(Base):
     user_id = Column(String)
     producto = Column(String)
     total = Column(Float)
+    
+class Producto(Base):
+    __tablename__ = "productos"
 
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String)
+    precio_m2 = Column(Float)
+    
 Base.metadata.create_all(bind=engine)
