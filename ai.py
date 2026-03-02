@@ -24,7 +24,7 @@ def interpretar_mensaje(mensaje):
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         temperature=0
-    )
+    )   
 
     contenido = response.choices[0].message.content
 
