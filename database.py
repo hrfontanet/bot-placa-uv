@@ -24,3 +24,20 @@ class Producto(Base):
     precio_m2 = Column(Float)
     
 Base.metadata.create_all(bind=engine)
+
+def crear_productos_iniciales():
+    db = SessionLocal()
+
+    if db.query(Producto).count() == 0:
+        productos = [
+            Producto(nombre="Placa UV Piedra Gris", precio_m2=20000),
+            Producto(nombre="Placa UV Mármol Blanco", precio_m2=24000),
+            Producto(nombre="Placa UV Cemento", precio_m2=18000),
+        ]
+
+        db.add_all(productos)
+        db.commit()
+
+    db.close()
+
+crear_productos_iniciales()
