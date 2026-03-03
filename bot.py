@@ -1,4 +1,5 @@
 from database import SessionLocal, Pedido, Producto
+from ai import interpretar_mensaje
 
 usuarios = {}
 
@@ -12,9 +13,61 @@ def procesar_mensaje(user_id: str, mensaje: str):
 
     estado = usuarios[user_id]
 
-    # ---------------- CATALOGO ----------------
+    # =========================================================
+    # 1️⃣ INTELIGENCIA ARTIFICIAL (solo cuando está en catálogo)
+    # =========================================================
     if estado["paso"] == "catalogo":
 
+        interpretacion = interpretar_mensaje(mensaje)
+
+        if not interpretacion.get("error"):
+
+            if interpretacion["intencion"] in ["consulta", "compra"]:
+
+                db = SessionLocal()
+                try:
+                    productos = db.query(Producto).all()
+                finally:
+                    db.close()
+
+                producto_encontrado = None
+
+                for producto in productos:
+                    if interpretacion["producto"].lower() in producto.nombre.lower():
+                        producto_encontrado = producto
+                        break
+
+                if producto_encontrado:
+
+                    estado["producto"] = {
+                        "id": producto_encontrado.id,
+                        "nombre": producto_encontrado.nombre,
+                        "precio_m2": producto_encontrado.precio_m2
+                    }
+
+                    # Si ya vino con m2
+                    if interpretacion["m2"]:
+
+                        m2 = float(interpretacion["m2"])
+                        subtotal = round(m2 * producto_encontrado.precio_m2, 2)
+
+                        estado["m2"] = m2
+                        estado["subtotal"] = subtotal
+                        estado["paso"] = "esperando_envio"
+
+                        return (
+                            f"Perfecto.\n\n"
+                            f"Producto: {producto_encontrado.nombre}\n"
+                            f"Superficie: {m2} m²\n"
+                            f"Subtotal: ${subtotal}\n\n"
+                            f"¿Cómo querés recibirlo?\n1. Envío\n2. Retiro"
+                        )
+
+                    # Si no vino con m2
+                    estado["paso"] = "esperando_m2"
+                    return f"¿Cuántos m² necesitás para {producto_encontrado.nombre}?"
+
+        # Si no detecta intención válida → muestra catálogo
         db = SessionLocal()
         try:
             productos = db.query(Producto).all()
@@ -29,7 +82,9 @@ def procesar_mensaje(user_id: str, mensaje: str):
         estado["paso"] = "esperando_producto"
         return texto
 
-    # ---------------- SELECCION PRODUCTO ----------------
+    # =========================================================
+    # 2️⃣ SELECCIÓN DE PRODUCTO MANUAL
+    # =========================================================
     if estado["paso"] == "esperando_producto":
 
         if not mensaje.isdigit():
@@ -55,7 +110,9 @@ def procesar_mensaje(user_id: str, mensaje: str):
         estado["paso"] = "esperando_m2"
         return "¿Cuántos m² necesitás cubrir?"
 
-    # ---------------- INGRESO M2 ----------------
+    # =========================================================
+    # 3️⃣ INGRESO DE M2
+    # =========================================================
     if estado["paso"] == "esperando_m2":
 
         try:
@@ -74,7 +131,9 @@ def procesar_mensaje(user_id: str, mensaje: str):
 
         return "¿Cómo querés recibirlo?\n1. Envío\n2. Retiro"
 
-    # ---------------- ENVIO ----------------
+    # =========================================================
+    # 4️⃣ ENVÍO / RETIRO
+    # =========================================================
     if estado["paso"] == "esperando_envio":
 
         if mensaje == "1":
@@ -102,7 +161,9 @@ def procesar_mensaje(user_id: str, mensaje: str):
             "Escribí 'confirmar' o 'cancelar'."
         )
 
-    # ---------------- CONFIRMACION ----------------
+    # =========================================================
+    # 5️⃣ CONFIRMACIÓN
+    # =========================================================
     if estado["paso"] == "confirmar":
 
         if mensaje.lower() == "confirmar":
@@ -120,6 +181,7 @@ def procesar_mensaje(user_id: str, mensaje: str):
                 db.close()
 
             usuarios[user_id] = {"paso": "catalogo"}
+
             return "Pedido confirmado y guardado. Un asesor te contacta."
 
         if mensaje.lower() == "cancelar":
