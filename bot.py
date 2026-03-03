@@ -2,21 +2,26 @@ from database import SessionLocal, Pedido, Producto
 
 usuarios = {}
 
-def procesar_mensaje(user_id, mensaje):
+
+def procesar_mensaje(user_id: str, mensaje: str):
+
+    mensaje = mensaje.strip()
 
     if user_id not in usuarios:
         usuarios[user_id] = {"paso": "catalogo"}
 
     estado = usuarios[user_id]
 
-    # Mostrar catálogo
+    # ---------------- CATALOGO ----------------
     if estado["paso"] == "catalogo":
 
         db = SessionLocal()
-        productos = db.query(Producto).all()
-        db.close()
+        try:
+            productos = db.query(Producto).all()
+        finally:
+            db.close()
 
-        texto = "Elegí producto:\n"
+        texto = "Elegí producto:\n\n"
 
         for producto in productos:
             texto += f"{producto.id}. {producto.nombre} - ${producto.precio_m2}/m²\n"
@@ -24,17 +29,19 @@ def procesar_mensaje(user_id, mensaje):
         estado["paso"] = "esperando_producto"
         return texto
 
-    # Esperar selección
+    # ---------------- SELECCION PRODUCTO ----------------
     if estado["paso"] == "esperando_producto":
 
-        try:
-            producto_id = int(mensaje)
-        except:
+        if not mensaje.isdigit():
             return "Elegí el número del producto."
 
+        producto_id = int(mensaje)
+
         db = SessionLocal()
-        producto = db.query(Producto).filter(Producto.id == producto_id).first()
-        db.close()
+        try:
+            producto = db.query(Producto).filter(Producto.id == producto_id).first()
+        finally:
+            db.close()
 
         if not producto:
             return "Opción inválida. Elegí el número del producto."
@@ -48,16 +55,18 @@ def procesar_mensaje(user_id, mensaje):
         estado["paso"] = "esperando_m2"
         return "¿Cuántos m² necesitás cubrir?"
 
-    # Esperar m2
+    # ---------------- INGRESO M2 ----------------
     if estado["paso"] == "esperando_m2":
 
         try:
-            m2 = float(mensaje)
-        except:
+            m2 = float(mensaje.replace(",", "."))
+            if m2 <= 0:
+                return "Ingresá un número válido de m²."
+        except ValueError:
             return "Ingresá un número válido de m²."
 
         precio_m2 = estado["producto"]["precio_m2"]
-        subtotal = m2 * precio_m2
+        subtotal = round(m2 * precio_m2, 2)
 
         estado["m2"] = m2
         estado["subtotal"] = subtotal
@@ -65,7 +74,7 @@ def procesar_mensaje(user_id, mensaje):
 
         return "¿Cómo querés recibirlo?\n1. Envío\n2. Retiro"
 
-    # Envío
+    # ---------------- ENVIO ----------------
     if estado["paso"] == "esperando_envio":
 
         if mensaje == "1":
@@ -77,12 +86,14 @@ def procesar_mensaje(user_id, mensaje):
         else:
             return "Elegí 1 para envío o 2 para retiro."
 
-        total_final = estado["subtotal"] + costo_envio
+        total_final = round(estado["subtotal"] + costo_envio, 2)
+
         estado["total_final"] = total_final
+        estado["costo_envio"] = costo_envio
         estado["paso"] = "confirmar"
 
         return (
-            f"\n📦 Cotización Final\n"
+            f"\n📦 Cotización Final\n\n"
             f"Producto: {estado['producto']['nombre']}\n"
             f"Superficie: {estado['m2']} m²\n"
             f"Subtotal: ${estado['subtotal']}\n"
@@ -91,25 +102,28 @@ def procesar_mensaje(user_id, mensaje):
             "Escribí 'confirmar' o 'cancelar'."
         )
 
-    # Confirmación
+    # ---------------- CONFIRMACION ----------------
     if estado["paso"] == "confirmar":
 
         if mensaje.lower() == "confirmar":
 
             db = SessionLocal()
-            nuevo_pedido = Pedido(
-                user_id=user_id,
-                producto=estado["producto"]["nombre"],
-                total=estado["total_final"]
-            )
-            db.add(nuevo_pedido)
-            db.commit()
-            db.close()
+            try:
+                nuevo_pedido = Pedido(
+                    user_id=user_id,
+                    producto=estado["producto"]["nombre"],
+                    total=estado["total_final"]
+                )
+                db.add(nuevo_pedido)
+                db.commit()
+            finally:
+                db.close()
 
             usuarios[user_id] = {"paso": "catalogo"}
-
             return "Pedido confirmado y guardado. Un asesor te contacta."
 
-        else:
+        if mensaje.lower() == "cancelar":
             usuarios[user_id] = {"paso": "catalogo"}
             return "Pedido cancelado."
+
+        return "Escribí 'confirmar' o 'cancelar'."
