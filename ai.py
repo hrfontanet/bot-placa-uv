@@ -1,15 +1,8 @@
 import os
 import json
 from openai import OpenAI
-from pydantic import BaseModel, ValidationError
-from typing import Optional
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-class MensajeInterpretado(BaseModel):
-    intencion: str
-    producto: str
-    m2: Optional[float] = None
 
 
 def interpretar_mensaje(mensaje: str):
@@ -45,18 +38,15 @@ Respondé SOLO JSON válido.
 
         data = json.loads(contenido)
 
-        validado = MensajeInterpretado(**data)
-
-        return validado.model_dump()
-
-    except ValidationError as ve:
+        # Validación manual simple
         return {
-            "error": "Error de validación",
-            "detalle": ve.errors()
+            "intencion": data.get("intencion"),
+            "producto": data.get("producto"),
+            "m2": data.get("m2")
         }
 
     except Exception as e:
         return {
-            "error": "Error interno",
+            "error": "Error interpretando mensaje",
             "detalle": str(e)
         }
