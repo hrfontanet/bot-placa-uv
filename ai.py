@@ -1,13 +1,20 @@
 import os
 import json
 from openai import OpenAI
+from pydantic import BaseModel, ValidationError
+from typing import Optional
 
-# Inicializa cliente usando variable de entorno
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+class MensajeInterpretado(BaseModel):
+    intencion: str
+    producto: str
+    m2: Optional[float] = None
+
+
 def interpretar_mensaje(mensaje: str):
-    try:
-        prompt = f"""
+
+    prompt = f"""
 Sos un asistente que analiza mensajes de clientes de una empresa que vende placas UV.
 
 Extraé la siguiente información en formato JSON:
@@ -15,12 +22,13 @@ Extraé la siguiente información en formato JSON:
 - producto: (placas, instalación, otro)
 - m2: número de metros cuadrados si se menciona, sino null
 
-Mensaje del cliente:
+Mensaje:
 "{mensaje}"
 
-Respondé SOLO el JSON válido.
+Respondé SOLO JSON válido.
 """
 
+    try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -32,14 +40,23 @@ Respondé SOLO el JSON válido.
 
         contenido = response.choices[0].message.content.strip()
 
-        # Limpieza por si el modelo devuelve ```json
         if contenido.startswith("```"):
             contenido = contenido.replace("```json", "").replace("```", "").strip()
 
-        return json.loads(contenido)
+        data = json.loads(contenido)
+
+        validado = MensajeInterpretado(**data)
+
+        return validado.model_dump()
+
+    except ValidationError as ve:
+        return {
+            "error": "Error de validación",
+            "detalle": ve.errors()
+        }
 
     except Exception as e:
         return {
-            "error": "Error interpretando mensaje",
+            "error": "Error interno",
             "detalle": str(e)
         }
