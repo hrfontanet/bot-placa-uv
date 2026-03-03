@@ -1,8 +1,3 @@
-import os
-from openai import OpenAI
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 def interpretar_mensaje(mensaje):
 
     prompt = f"""
@@ -32,6 +27,10 @@ def interpretar_mensaje(mensaje):
         temperature=0,
         response_format={"type": "json_object"}
     )
+
+    contenido = response.choices[0].message.content
+
+    return contenido
     
     contenido = response.choices[0].message.content
 
