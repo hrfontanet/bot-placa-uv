@@ -22,10 +22,17 @@ def interpretar_mensaje(mensaje):
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0
-    )   
-
+        messages=[
+            {
+                "role": "system",
+                "content": "Respondé únicamente con un objeto JSON válido. No uses markdown. No agregues texto extra."
+            },
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0,
+        response_format={"type": "json_object"}
+    )
+    
     contenido = response.choices[0].message.content
 
     return contenido
