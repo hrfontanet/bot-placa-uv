@@ -67,4 +67,5 @@ def semilla():
         db.close()
 
 # Ejecutar la carga inicial al arrancar
-semilla()
+if __name__ == "__main__":
+    semilla()
