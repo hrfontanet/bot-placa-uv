@@ -1,53 +1,49 @@
 from sqlalchemy import create_engine, Column, Integer, String, Float
 from sqlalchemy.orm import declarative_base, sessionmaker
-from sqlalchemy.pool import StaticPool
+import os
 
-DATABASE_URL = "sqlite:///./bot.db"
+# Usamos la variable de entorno de Render
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./bot.db")
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False},  # obligatorio para FastAPI + SQLite
-    poolclass=StaticPool
-)
-
+engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 Base = declarative_base()
-
-
-class Pedido(Base):
-    __tablename__ = "pedidos"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String, index=True)
-    producto = Column(String)
-    total = Column(Float)
-
 
 class Producto(Base):
     __tablename__ = "productos"
-
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String)
-    precio_m2 = Column(Float)
+    precio_unidad = Column(Float)
+    m2_por_unidad = Column(Float, default=2.97)
+    descripcion = Column(String)
+    link_url = Column(String)
 
+class Pedido(Base):
+    __tablename__ = "pedidos"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String)
+    detalle = Column(String)
+    total = Column(Float)
 
 Base.metadata.create_all(bind=engine)
 
-
-def crear_productos_iniciales():
+def semilla():
     db = SessionLocal()
-    try:
-        if db.query(Producto).count() == 0:
-            productos = [
-                Producto(nombre="Placa UV Piedra Gris", precio_m2=20000),
-                Producto(nombre="Placa UV Mármol Blanco", precio_m2=24000),
-                Producto(nombre="Placa UV Cemento", precio_m2=18000),
-            ]
-            db.add_all(productos)
-            db.commit()
-    finally:
-        db.close()
+    if db.query(Producto).count() == 0:
+        p1 = Producto(
+            nombre="Placa UV Piedra Gris", 
+            precio_unidad=54300, 
+            descripcion="Rígida, se pega con silicona neutra.",
+            link_url="https://wa.me/p/tu_id_1"
+        )
+        p2 = Producto(
+            nombre="Placa UV Mármol Blanco", 
+            precio_unidad=54300, 
+            descripcion="Simil mármol premium, 1.22x2.44m.",
+            link_url="https://wa.me/p/tu_id_2"
+        )
+        db.add_all([p1, p2])
+        db.commit()
+    db.close()
 
-
-crear_productos_iniciales()
+semilla()
