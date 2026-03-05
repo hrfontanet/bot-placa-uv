@@ -2,24 +2,21 @@ import os
 import json
 from openai import OpenAI
 
+# Exponemos el client para que bot.py lo use
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-
 def interpretar_mensaje(mensaje: str):
-
+    # Ajusté el prompt para que extraiga el tipo de placa específico (ej: marmol, tiza, gris)
     prompt = f"""
-Sos un asistente que analiza mensajes de clientes de una empresa que vende placas UV.
+    Sos un asistente que analiza mensajes de clientes para una empresa de placas UV.
+    Extraé la información en JSON:
+    - intencion: (consulta, compra, saludo, otro)
+    - producto: (el tipo de placa o color mencionado, ej: 'marmol', 'piedra', 'gris', 'tiza'. Si no especifica, pone 'placa')
+    - m2: número de metros cuadrados (solo el número), sino null
 
-Extraé la siguiente información en formato JSON:
-- intencion: (consulta, compra, saludo, otro)
-- producto: (placas, instalación, otro)
-- m2: número de metros cuadrados si se menciona, sino null
-
-Mensaje:
-"{mensaje}"
-
-Respondé SOLO JSON válido.
-"""
+    Mensaje: "{mensaje}"
+    Respondé SOLO JSON válido.
+    """
 
     try:
         response = client.chat.completions.create(
@@ -32,13 +29,10 @@ Respondé SOLO JSON válido.
         )
 
         contenido = response.choices[0].message.content.strip()
-
         if contenido.startswith("```"):
             contenido = contenido.replace("```json", "").replace("```", "").strip()
 
         data = json.loads(contenido)
-
-        # Validación manual simple
         return {
             "intencion": data.get("intencion"),
             "producto": data.get("producto"),
@@ -46,31 +40,30 @@ Respondé SOLO JSON válido.
         }
 
     except Exception as e:
-        return {
-            "error": "Error interpretando mensaje",
-            "detalle": str(e)
-        }
+        return {"error": "Error interpretando", "detalle": str(e)}
 
-def redactar_respuesta(datos_calculo: dict, mensaje_usuario: str):
+# Esta función la usa bot.py para el lenguaje natural
+def redactar_respuesta_humana(datos_calculo: dict, mensaje_usuario: str):
     prompt = f"""
-    Sos un experto vendedor de placas UV. Tu estilo es profesional, directo y servicial.
+    Sos un experto vendedor de placas UV. Estilo profesional, humano y servicial.
     
-    Contexto del cálculo:
+    Datos para la respuesta:
     {datos_calculo}
     
-    Mensaje del usuario: "{mensaje_usuario}"
+    Mensaje original del usuario: "{mensaje_usuario}"
     
     Instrucciones:
-    - Usá lenguaje natural, no parezcas un bot.
-    - Explicá que sumaste un 10% por desperdicio de forma natural.
-    - Si hay un link de producto, incluyelo.
-    - Terminá con una pregunta para cerrar la venta (envío o retiro, o forma de pago).
-    - No uses fórmulas matemáticas, solo resultados amigables.
+    - No parezcas un bot. Usá lenguaje natural.
+    - Explicá el 10% de desperdicio de forma amigable.
+    - Incluí links si están presentes.
+    - Cerrá con una pregunta para avanzar con la venta.
+    - No escribas cuentas matemáticas, da los resultados finales.
     """
     
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7 # Más alto para que sea menos robótico
+        messages=[{"role": "system", "content": "Sos un vendedor experto de revestimientos."},
+                  {"role": "user", "content": prompt}],
+        temperature=0.7 
     )
     return response.choices[0].message.content.strip()
