@@ -50,3 +50,27 @@ Respondé SOLO JSON válido.
             "error": "Error interpretando mensaje",
             "detalle": str(e)
         }
+
+def redactar_respuesta(datos_calculo: dict, mensaje_usuario: str):
+    prompt = f"""
+    Sos un experto vendedor de placas UV. Tu estilo es profesional, directo y servicial.
+    
+    Contexto del cálculo:
+    {datos_calculo}
+    
+    Mensaje del usuario: "{mensaje_usuario}"
+    
+    Instrucciones:
+    - Usá lenguaje natural, no parezcas un bot.
+    - Explicá que sumaste un 10% por desperdicio de forma natural.
+    - Si hay un link de producto, incluyelo.
+    - Terminá con una pregunta para cerrar la venta (envío o retiro, o forma de pago).
+    - No uses fórmulas matemáticas, solo resultados amigables.
+    """
+    
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7 # Más alto para que sea menos robótico
+    )
+    return response.choices[0].message.content.strip()
