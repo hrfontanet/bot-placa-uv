@@ -1,13 +1,12 @@
 from fastapi import FastAPI
 from bot import procesar_mensaje
-from ai import interpretar_mensaje
-from database import engine, Base, semilla # Importamos lo necesario de la DB
+from database import engine, Base, semilla
 
 app = FastAPI()
 
-# Esto es lo único que garantiza que el build NO falle
 @app.on_event("startup")
 def startup_db():
+    # Esto se ejecuta DESPUÉS de que el servidor está online, evitando el Status 1
     Base.metadata.create_all(bind=engine)
     semilla()
 
@@ -16,12 +15,12 @@ def home():
     return {"status": "Bot Placa UV funcionando"}
 
 @app.post("/webhook")
-def webhook(data: dict):
+async def webhook(data: dict):
     user_id = data.get("user_id")
     mensaje = data.get("mensaje")
+    
+    if not user_id or not mensaje:
+        return {"respuesta": "Faltan datos en el JSON"}
+
     respuesta = procesar_mensaje(user_id, mensaje)
     return {"respuesta": respuesta}
-
-@app.get("/test-ai")
-def test_ai(mensaje: str):
-    return interpretar_mensaje(mensaje)
