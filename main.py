@@ -6,21 +6,20 @@ app = FastAPI()
 
 @app.on_event("startup")
 def startup_db():
-    # Esto se ejecuta DESPUÉS de que el servidor está online, evitando el Status 1
-    Base.metadata.create_all(bind=engine)
-    semilla()
+    # El try/except acá es VIDA para que Render no te tire Status 1
+    try:
+        Base.metadata.create_all(bind=engine)
+        semilla()
+    except Exception as e:
+        print(f"Ignorando error de DB en arranque: {e}")
 
 @app.get("/")
-def home():
-    return {"status": "Bot Placa UV funcionando"}
+def home(): return {"status": "ok"}
 
 @app.post("/webhook")
 async def webhook(data: dict):
-    user_id = data.get("user_id")
-    mensaje = data.get("mensaje")
-    
-    if not user_id or not mensaje:
-        return {"respuesta": "Faltan datos en el JSON"}
-
-    respuesta = procesar_mensaje(user_id, mensaje)
-    return {"respuesta": respuesta}
+    u_id = data.get("user_id")
+    msg = data.get("mensaje")
+    if not u_id or not msg:
+        return {"respuesta": "Faltan datos"}
+    return {"respuesta": procesar_mensaje(u_id, msg)}
