@@ -18,9 +18,7 @@ def home():
 def webhook(data: dict):
     user_id = data.get("user_id")
     mensaje = data.get("mensaje")
-
     respuesta = procesar_mensaje(user_id, mensaje)
-
     return {"respuesta": respuesta}
 
 @app.get("/test-ai")
