@@ -1,79 +1,251 @@
-import math
-from database import SessionLocal, Pedido, Producto
-from ai import interpretar_mensaje, redactar_respuesta_humana # Importación corregida
+from database import SessionLocal, Producto, Pedido
+from ai import interpretar_mensaje
 
 usuarios = {}
 
 def procesar_mensaje(user_id: str, mensaje: str):
+
+    print("=== BOT NUEVO EJECUTANDO ===")
+    print("Mensaje recibido:", mensaje)
+
+    mensaje = mensaje.strip()
+
     if user_id not in usuarios:
-        usuarios[user_id] = {"paso": "inicio"}
-    
+        usuarios[user_id] = {"paso": "catalogo"}
+
     estado = usuarios[user_id]
-    db = SessionLocal()
 
-    try:
-        # 1. IA analiza la intención y extrae datos (m2, producto)
-        interp = interpretar_mensaje(mensaje)
-        
-        # Lógica Consultiva Directa (Paso inicial)
-        if estado["paso"] == "inicio" and interp.get("intencion") in ["consulta", "compra"]:
-            # Buscamos producto que coincida con lo que detectó la IA
-            prod_db = db.query(Producto).filter(Producto.nombre.ilike(f"%{interp.get('producto', '')}%")).first()
-            
-            if prod_db and interp.get("m2"):
-                # CÁLCULO PROFESIONAL (Matemática exacta en Python)
-                m2_reales = float(interp["m2"])
-                m2_con_desperdicio = m2_reales * 1.10
-                cant_placas = math.ceil(m2_con_desperdicio / prod_db.m2_por_unidad)
-                total = cant_placas * prod_db.precio_unidad
-                
-                # Guardamos datos en el estado del usuario para la confirmación
-                estado.update({
-                    "paso": "confirmar",
-                    "prod_id": prod_db.id,
-                    "cant": cant_placas,
-                    "total": total
-                })
+    # =========================================================
+    # 1️⃣ INTELIGENCIA ARTIFICIAL
+    # =========================================================
 
-                # Datos para que la IA redacte con onda
-                datos_calculo = {
-                    "nombre": prod_db.nombre,
-                    "m2_solicitados": m2_reales,
-                    "cant_placas": cant_placas,
-                    "total": total,
-                    "descripcion": prod_db.descripcion,
-                    "link": prod_db.link_url
-                }
+    if estado["paso"] == "catalogo":
 
-                # DELEGAMOS LA REDACCIÓN A LA IA (Lenguaje Natural)
-                return redactar_respuesta_humana(datos_calculo, mensaje)
+        interpretacion = interpretar_mensaje(mensaje)
 
-        # 2. Flujo de Confirmación
-        if estado["paso"] == "confirmar":
-            confirmaciones = ["si", "ok", "confirmar", "dale", "de una", "perfecto"]
-            if any(palabra in mensaje.lower() for palabra in confirmaciones):
-                # Guardamos el pedido real en Supabase
-                nuevo = Pedido(
-                    user_id=user_id, 
-                    total=estado["total"], 
-                    detalle=f"{estado['cant']} placas de {estado.get('prod_id')}"
+        print("Interpretación IA:", interpretacion)
+
+        if not interpretacion.get("error"):
+
+            if interpretacion["intencion"] in ["consulta", "compra"]:
+
+                db = SessionLocal()
+                try:
+                    productos = db.query(Producto).all()
+                finally:
+                    db.close()
+
+                producto_encontrado = None
+                producto_ai = str(interpretacion["producto"]).lower()
+
+                for producto in productos:
+
+                    nombre = producto.nombre.lower()
+
+                    if (
+                        producto_ai in nombre
+                        or "placa" in nombre
+                        or "placas" in producto_ai
+                    ):
+                        producto_encontrado = producto
+                        break
+
+                if producto_encontrado:
+
+                    estado["producto"] = {
+                        "id": producto_encontrado.id,
+                        "nombre": producto_encontrado.nombre,
+                        "precio_m2": producto_encontrado.precio_m2
+                    }
+
+                    # SI YA VINO CON M2
+                    if interpretacion["m2"]:
+
+                        m2 = float(interpretacion["m2"])
+
+                        subtotal = round(
+                            m2 * producto_encontrado.precio_m2,
+                            2
+                        )
+
+                        estado["m2"] = m2
+                        estado["subtotal"] = subtotal
+                        estado["paso"] = "esperando_envio"
+
+                        return (
+                            f"Perfecto.\n\n"
+                            f"Producto: {producto_encontrado.nombre}\n"
+                            f"Superficie: {m2} m²\n"
+                            f"Subtotal: ${subtotal}\n\n"
+                            f"¿Cómo querés recibirlo?\n"
+                            f"1. Envío\n"
+                            f"2. Retiro"
+                        )
+
+                    estado["paso"] = "esperando_m2"
+
+                    return (
+                        f"Tenemos {producto_encontrado.nombre} "
+                        f"a ${producto_encontrado.precio_m2}/m².\n\n"
+                        f"¿Cuántos m² necesitás?"
+                    )
+
+        # =========================================================
+        # MOSTRAR CATÁLOGO
+        # =========================================================
+
+        db = SessionLocal()
+        try:
+            productos = db.query(Producto).all()
+        finally:
+            db.close()
+
+        texto = "Elegí producto:\n\n"
+
+        for producto in productos:
+            texto += (
+                f"{producto.id}. {producto.nombre} "
+                f"- ${producto.precio_m2}/m²\n"
+            )
+
+        estado["paso"] = "esperando_producto"
+
+        return texto
+
+    # =========================================================
+    # 2️⃣ SELECCIÓN DE PRODUCTO
+    # =========================================================
+
+    if estado["paso"] == "esperando_producto":
+
+        if not mensaje.isdigit():
+            return "Elegí el número del producto."
+
+        producto_id = int(mensaje)
+
+        db = SessionLocal()
+        try:
+            producto = db.query(Producto).filter(
+                Producto.id == producto_id
+            ).first()
+        finally:
+            db.close()
+
+        if not producto:
+            return "Opción inválida. Elegí el número del producto."
+
+        estado["producto"] = {
+            "id": producto.id,
+            "nombre": producto.nombre,
+            "precio_m2": producto.precio_m2
+        }
+
+        estado["paso"] = "esperando_m2"
+
+        return "¿Cuántos m² necesitás cubrir?"
+
+    # =========================================================
+    # 3️⃣ INGRESO M2
+    # =========================================================
+
+    if estado["paso"] == "esperando_m2":
+
+        try:
+            m2 = float(mensaje.replace(",", "."))
+
+            if m2 <= 0:
+                return "Ingresá un número válido de m²."
+
+        except ValueError:
+            return "Ingresá un número válido de m²."
+
+        precio_m2 = estado["producto"]["precio_m2"]
+
+        subtotal = round(m2 * precio_m2, 2)
+
+        estado["m2"] = m2
+        estado["subtotal"] = subtotal
+        estado["paso"] = "esperando_envio"
+
+        return (
+            f"Subtotal: ${subtotal}\n\n"
+            f"¿Cómo querés recibirlo?\n"
+            f"1. Envío\n"
+            f"2. Retiro"
+        )
+
+    # =========================================================
+    # 4️⃣ ENVÍO
+    # =========================================================
+
+    if estado["paso"] == "esperando_envio":
+
+        if mensaje == "1":
+
+            costo_envio = 10000
+            estado["envio"] = "Envío"
+
+        elif mensaje == "2":
+
+            costo_envio = 0
+            estado["envio"] = "Retiro"
+
+        else:
+
+            return "Elegí 1 para envío o 2 para retiro."
+
+        total_final = round(
+            estado["subtotal"] + costo_envio,
+            2
+        )
+
+        estado["total_final"] = total_final
+        estado["costo_envio"] = costo_envio
+        estado["paso"] = "confirmar"
+
+        return (
+            f"📦 Cotización Final\n\n"
+            f"Producto: {estado['producto']['nombre']}\n"
+            f"Superficie: {estado['m2']} m²\n"
+            f"Subtotal: ${estado['subtotal']}\n"
+            f"{estado['envio']}: ${costo_envio}\n\n"
+            f"Total Final: ${total_final}\n\n"
+            f"Escribí 'confirmar' o 'cancelar'."
+        )
+
+    # =========================================================
+    # 5️⃣ CONFIRMAR
+    # =========================================================
+
+    if estado["paso"] == "confirmar":
+
+        if mensaje.lower() == "confirmar":
+
+            db = SessionLocal()
+
+            try:
+
+                nuevo_pedido = Pedido(
+                    user_id=user_id,
+                    producto=estado["producto"]["nombre"],
+                    total=estado["total_final"]
                 )
-                db.add(nuevo)
-                db.commit()
-                usuarios[user_id] = {"paso": "inicio"}
-                return "¡Espectacular! Ya registré tu pedido en el sistema. ¿Te gustaría que coordinemos el envío a tu zona o preferís retirar por nuestro depósito?"
-            
-            if "no" in mensaje.lower():
-                usuarios[user_id] = {"paso": "inicio"}
-                return "No hay problema, cancelamos la cotización. ¿Hay algún otro modelo que te interese ver o alguna duda técnica?"
-            
-        # 3. Fallback: Catálogo (Si la IA no entiende o falta info)
-        productos = db.query(Producto).all()
-        txt = "¡Hola! ¿Cómo estás? Te cuento que tenemos estas Placas UV disponibles para entrega inmediata:\n\n"
-        for p in productos:
-            txt += f"• {p.nombre}: ${p.precio_unidad}/unidad (Cubre {p.m2_por_unidad}m²)\n"
-        txt += "\nDecime cuál te gusta y cuántos m² necesitás cubrir, así te paso el presupuesto con el 10% de desperdicio incluido."
-        return txt
 
-    finally:
-        db.close()
+                db.add(nuevo_pedido)
+                db.commit()
+
+            finally:
+
+                db.close()
+
+            usuarios[user_id] = {"paso": "catalogo"}
+
+            return "Pedido confirmado. Un asesor te contactará."
+
+        if mensaje.lower() == "cancelar":
+
+            usuarios[user_id] = {"paso": "catalogo"}
+
+            return "Pedido cancelado."
+
+        return "Escribí 'confirmar' o 'cancelar'."
